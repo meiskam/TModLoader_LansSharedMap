@@ -24,15 +24,17 @@ namespace LansSharedMap
 
 	public class LansSharedMap : Mod
 	{
-		Queue<Position> updates = new Queue<Position>();
+		public Queue<Position> updates = new Queue<Position>();
+        public static LansSharedMap me;
 
-		//ushort[][] sentMapType;
-		//byte[][] sentMapLight;
-		//byte[][] sentMapColor;
-		//bool[][] loadedMap;
+        //ushort[][] sentMapType;
+        //byte[][] sentMapLight;
+        //byte[][] sentMapColor;
+        //bool[][] loadedMap;
 
-		public LansSharedMap()
+        public LansSharedMap()
 		{
+            me = this;
 			/*sentMapType = new ushort[Main.maxTilesY][];
 			sentMapLight = new byte[Main.maxTilesY][];
 			sentMapColor = new byte[Main.maxTilesY][];*/
@@ -80,41 +82,6 @@ namespace LansSharedMap
 				
 			}
 		}
-		
-		public override void PostUpdateEverything()
-		{
-			base.PostUpdateEverything();
-
-
-			
-			while (updates.Count > 0)
-			{
-				var maxUpdates = Math.Min(1000, updates.Count);
-				int length = 2 + 4 + maxUpdates * 12;
-				var packet = GetPacket(length);
-				packet.Write((byte)LansSharedMapModMessageType.MapUpdate);
-				packet.Write((byte)Main.myPlayer);
-				packet.Write((int)length);
-
-				for (var i = 0; i < maxUpdates; i++)
-				{
-					var t = updates.Dequeue();
-					packet.Write((int)t.x);
-					packet.Write((int)t.y);
-					var mapTile = Main.Map[t.x, t.y];
-					packet.Write((ushort)mapTile.Type);
-					packet.Write((byte)mapTile.Light);
-					packet.Write((byte)mapTile.Color);
-						
-				}
-
-				packet.Send();
-
-				//this.Logger.Warn("Sent " + maxUpdates + " stuff");
-					
-			}
-				
-		}
 
 
 
@@ -134,13 +101,13 @@ namespace LansSharedMap
 						byte playernumber = reader.ReadByte();
 						if (Main.netMode == NetmodeID.Server)
 						{
-							//this.Logger.Warn("Recieveid as server ");
+                            this.Logger.Warn("Recieveid as server "); //XXX
 
-							int length = reader.ReadInt32();
+                            int length = reader.ReadInt32();
 
-							//this.Logger.Warn("Packet length is:"+length);
+							this.Logger.Warn("Packet length is:"+length); //XXX
 
-							var packet = GetPacket(length);
+                            var packet = GetPacket(length);
 							packet.Write((byte)LansSharedMapModMessageType.MapUpdate);
 							packet.Write((byte)playernumber);
 							packet.Write((int)length);
@@ -153,9 +120,9 @@ namespace LansSharedMap
 						}
 						else
 						{
-							//this.Logger.Warn("Recieveid as client ");
+                            this.Logger.Warn("Recieveid as client "); //XXX
 
-							int length = reader.ReadInt32();
+                            int length = reader.ReadInt32();
 							length = (length - 6) / 12;
 
 							for (int i = 0; i < length; i++)
@@ -170,7 +137,7 @@ namespace LansSharedMap
 								if (isWorldMapTileDifferent(Main.Map[x, y], tile)) {
 									Main.Map.SetTile(x, y, ref tile);
 									var result = MyUpdateMapTile(x, y, true);
-									//this.Logger.Warn("Update x:"+x+" y:"+y+" v:"+ result);
+									this.Logger.Warn("Update x:"+x+" y:"+y+" v:"+ result); //XXX
 									
 								}
 							}
@@ -208,11 +175,51 @@ namespace LansSharedMap
 
 
 
-		internal enum LansSharedMapModMessageType : byte
+		public enum LansSharedMapModMessageType : byte
 		{
 			MapUpdate,
 		}
 	}
 
-	
+
+    class LansSharedMapModSystem : ModSystem
+    {
+
+        public override void PostUpdateEverything()
+        {
+            base.PostUpdateEverything();
+
+            if (LansSharedMap.me != null)
+            {
+                while (LansSharedMap.me.updates.Count > 0)
+                {
+                    var maxUpdates = Math.Min(1000, LansSharedMap.me.updates.Count);
+                    int length = 2 + 4 + maxUpdates * 12;
+                    var packet = LansSharedMap.me.GetPacket(length);
+                    packet.Write((byte)LansSharedMap.LansSharedMapModMessageType.MapUpdate);
+                    packet.Write((byte)Main.myPlayer);
+                    packet.Write((int)length);
+
+                    for (var i = 0; i < maxUpdates; i++)
+                    {
+                        var t = LansSharedMap.me.updates.Dequeue();
+                        packet.Write((int)t.x);
+                        packet.Write((int)t.y);
+                        var mapTile = Main.Map[t.x, t.y];
+                        packet.Write((ushort)mapTile.Type);
+                        packet.Write((byte)mapTile.Light);
+                        packet.Write((byte)mapTile.Color);
+
+                    }
+
+                    packet.Send();
+
+                    //this.Logger.Warn("Sent " + maxUpdates + " stuff"); //XXX
+
+                }
+            }
+        }
+    }
+
+
 }
